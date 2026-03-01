@@ -8,6 +8,8 @@ from pathlib import Path
 
 import click
 
+from mcpfind.config import GLOBAL_CONFIG_PATH, LOCAL_CONFIG_NAME
+
 # Known MCP client config locations
 MCP_CLIENT_CONFIGS: list[dict] = [
     {
@@ -379,12 +381,40 @@ def _build_toml(
     return "\n".join(lines)
 
 
+def _build_local_toml(servers: list[dict]) -> str:
+    """Generate a minimal project-local mcpfind.toml with only servers."""
+    lines = [
+        "# Project-local MCPFind config — servers here override/extend global config"
+    ]
+
+    for server in servers:
+        lines.append("")
+        lines.append("[[servers]]")
+        lines.append(f'name = "{server["name"]}"')
+        lines.append(f'command = "{server["command"]}"')
+
+        args_str = ", ".join(f'"{a}"' for a in server["args"])
+        lines.append(f"args = [{args_str}]")
+
+        if server.get("env"):
+            env_parts = []
+            for k, v in server["env"].items():
+                env_parts.append(f'{k} = "{v}"')
+            env_str = ", ".join(env_parts)
+            lines.append(f"env = {{ {env_str} }}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def run_setup() -> None:
     """Run the interactive setup wizard."""
     click.echo("=" * 50)
     click.echo("  MCPFind Setup")
     click.echo("=" * 50)
-    click.echo("\nThis wizard will create a mcpfind.toml config file.")
+    click.echo(
+        f"\nThis wizard will create your global config at:\n  {GLOBAL_CONFIG_PATH}"
+    )
 
     # Step 1: Detect existing MCP client configs
     detected = _detect_client_configs()
@@ -437,7 +467,7 @@ def run_setup() -> None:
     click.echo("\n--- Generated Configuration ---\n")
     click.echo(toml_content)
 
-    output_path = click.prompt("\nSave to", default="mcpfind.toml", type=str)
+    output_path = click.prompt("\nSave to", default=str(GLOBAL_CONFIG_PATH), type=str)
     path = Path(output_path)
 
     if path.exists():
@@ -445,12 +475,14 @@ def run_setup() -> None:
             click.echo("Setup cancelled.")
             return
 
+    # Create parent directory if needed
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(toml_content)
     click.echo(f"\nConfig saved to {path}")
 
     # Step 6: Install MCPFind proxy into client configs
     if detected and configured:
-        _install_to_clients(detected, output_path)
+        _install_to_clients(detected, str(path))
 
     # Step 7: Final instructions
     if provider == "openai":
@@ -458,5 +490,94 @@ def run_setup() -> None:
         click.echo("  pip install mcpfind[openai]")
 
     click.echo("\nYou're ready to go! Run:")
-    click.echo(f"  mcpfind serve --config {output_path}")
+    click.echo("  mcpfind serve")
+    click.echo("\nTo add project-specific servers, run:")
+    click.echo("  mcpfind init")
+    click.echo()
+
+
+def run_init() -> None:
+    """Create a project-local mcpfind.toml with project-specific servers."""
+    click.echo("=" * 50)
+    click.echo("  MCPFind Init — Project-Local Config")
+    click.echo("=" * 50)
+
+    local_path = Path(LOCAL_CONFIG_NAME)
+
+    # Show global config status
+    if GLOBAL_CONFIG_PATH.exists():
+        from mcpfind.config import load_config
+
+        try:
+            global_cfg = load_config(GLOBAL_CONFIG_PATH)
+            global_names = [s.name for s in global_cfg.servers]
+            click.echo(f"\nGlobal config: {GLOBAL_CONFIG_PATH}")
+            if global_names:
+                click.echo(f"  Global servers: {', '.join(global_names)}")
+            else:
+                click.echo("  No servers configured globally.")
+        except Exception:
+            click.echo(f"\nGlobal config: {GLOBAL_CONFIG_PATH} (could not load)")
+            global_names = []
+    else:
+        click.echo(f"\nNo global config found at {GLOBAL_CONFIG_PATH}")
+        click.echo("  Run 'mcpfind setup' to create one.")
+        global_names = []
+
+    click.echo(
+        f"\nThis will create ./{LOCAL_CONFIG_NAME} with project-specific servers."
+    )
+    click.echo(
+        "These servers will be merged with (and can override) your global config.\n"
+    )
+
+    if local_path.exists():
+        if not click.confirm(f"{local_path} already exists. Overwrite?"):
+            click.echo("Init cancelled.")
+            return
+
+    configured: list[dict] = []
+
+    # Pick from catalog
+    existing_names = set(global_names)
+    if existing_names:
+        click.echo(f"\n(Servers already in global config: {', '.join(existing_names)})")
+        click.echo("Adding a server with the same name will override the global one.\n")
+
+    selected_servers = _pick_servers()
+    for server in selected_servers:
+        configured.append(_configure_server(server))
+
+    # Custom servers
+    while True:
+        add_custom = click.confirm("\nAdd a custom MCP server?", default=False)
+        if not add_custom:
+            break
+
+        name = click.prompt("  Server name", type=str)
+        command = click.prompt("  Command (e.g., uvx, npx, python)", type=str)
+        args_str = click.prompt("  Arguments (space-separated)", default="", type=str)
+        args = args_str.split() if args_str else []
+
+        env: dict[str, str] = {}
+        while click.confirm("  Add an environment variable?", default=False):
+            key = click.prompt("    Variable name", type=str)
+            value = click.prompt(f"    Value for {key}", type=str)
+            env[key] = value
+
+        configured.append({"name": name, "command": command, "args": args, "env": env})
+
+    if not configured:
+        click.echo("\nNo servers selected. Init cancelled.")
+        return
+
+    toml_content = _build_local_toml(configured)
+
+    click.echo("\n--- Generated Project Config ---\n")
+    click.echo(toml_content)
+
+    local_path.write_text(toml_content)
+    click.echo(f"Config saved to ./{LOCAL_CONFIG_NAME}")
+
+    click.echo("\nRun 'mcpfind serve' to start with merged global + local config.")
     click.echo()

@@ -5,7 +5,14 @@ import logging
 
 import click
 
-from mcpfind.config import load_config
+from mcpfind.config import load_config, load_merged_config
+
+
+def _resolve_config(config_path: str | None):
+    """Load config from explicit path or use merged global+local."""
+    if config_path is not None:
+        return load_config(config_path)
+    return load_merged_config()
 
 
 @click.group()
@@ -18,31 +25,32 @@ def main():
 @click.option(
     "--config",
     "config_path",
-    default="mcpfind.toml",
-    help="Path to configuration file.",
+    default=None,
+    help="Path to configuration file. If omitted, loads global + local merged config.",
 )
-def serve(config_path: str):
+def serve(config_path: str | None):
     """Start the MCPFind proxy server (stdio MCP transport)."""
     from mcpfind.proxy.server import run_proxy
 
-    asyncio.run(run_proxy(config_path))
+    config = _resolve_config(config_path)
+    asyncio.run(run_proxy(config))
 
 
 @main.command("list-tools")
 @click.option(
     "--config",
     "config_path",
-    default="mcpfind.toml",
-    help="Path to configuration file.",
+    default=None,
+    help="Path to configuration file. If omitted, loads global + local merged config.",
 )
-def list_tools(config_path: str):
+def list_tools(config_path: str | None):
     """List all tools discovered from backend servers."""
 
     async def _list():
         from mcpfind.backend.discovery import discover_all_tools
         from mcpfind.backend.manager import BackendManager
 
-        config = load_config(config_path)
+        config = _resolve_config(config_path)
         manager = BackendManager(config.servers)
         await manager.start_all()
         try:
@@ -58,10 +66,18 @@ def list_tools(config_path: str):
 
 @main.command()
 def setup():
-    """Interactive setup wizard — configure embedding provider and MCP servers."""
+    """Interactive setup wizard — configure global MCPFind config."""
     from mcpfind.setup import run_setup
 
     run_setup()
+
+
+@main.command()
+def init():
+    """Create a project-local mcpfind.toml with project-specific servers."""
+    from mcpfind.setup import run_init
+
+    run_init()
 
 
 @main.command()
@@ -69,11 +85,11 @@ def setup():
 @click.option(
     "--config",
     "config_path",
-    default="mcpfind.toml",
-    help="Path to configuration file.",
+    default=None,
+    help="Path to configuration file. If omitted, loads global + local merged config.",
 )
 @click.option("--max-results", "-k", default=5, help="Number of results to return.")
-def search(query: str, config_path: str, max_results: int):
+def search(query: str, config_path: str | None, max_results: int):
     """Test semantic search against discovered tools."""
 
     async def _search():
@@ -82,7 +98,7 @@ def search(query: str, config_path: str, max_results: int):
         from mcpfind.index.embeddings import create_embedding_client
         from mcpfind.index.vector import VectorIndex
 
-        config = load_config(config_path)
+        config = _resolve_config(config_path)
         manager = BackendManager(config.servers)
         await manager.start_all()
         try:
@@ -91,11 +107,10 @@ def search(query: str, config_path: str, max_results: int):
             embedding_client = create_embedding_client(
                 provider=config.embedding_provider, model=config.embedding_model
             )
-            texts = [f"{e.name}: {e.description}" for e in entries]
-            if texts:
-                embeddings = embedding_client.embed_batch(texts)
-                for entry, emb in zip(entries, embeddings):
-                    entry.embedding = emb
+            if entries:
+                from mcpfind.index.cache import embed_with_cache
+
+                embed_with_cache(entries, embedding_client)
 
             index = VectorIndex()
             index.build(entries)
