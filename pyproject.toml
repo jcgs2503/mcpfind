@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcplens"
+name = "mcpfind"
 version = "0.1.1"
 description = "Context-efficient MCP tool proxy with semantic search"
 readme = "README.md"
@@ -21,10 +21,10 @@ dependencies = [
 openai = ["openai"]
 
 [project.scripts]
-mcplens = "mcplens.cli:main"
+mcpfind = "mcpfind.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcplens"]
+packages = ["src/mcpfind"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

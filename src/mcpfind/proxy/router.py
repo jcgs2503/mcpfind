@@ -5,11 +5,11 @@ import logging
 
 from mcp.types import TextContent
 
-from mcplens.backend.manager import BackendManager
-from mcplens.index.embeddings import BaseEmbeddingClient
-from mcplens.index.mfu import MFUCache
-from mcplens.index.vector import VectorIndex
-from mcplens.models import SearchResult, ToolEntry
+from mcpfind.backend.manager import BackendManager
+from mcpfind.index.embeddings import BaseEmbeddingClient
+from mcpfind.index.mfu import MFUCache
+from mcpfind.index.vector import VectorIndex
+from mcpfind.models import SearchResult, ToolEntry
 
 logger = logging.getLogger(__name__)
 

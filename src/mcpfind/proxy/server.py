@@ -1,4 +1,4 @@
-"""MCPLens MCP proxy server."""
+"""MCPFind MCP proxy server."""
 
 import logging
 from pathlib import Path
@@ -6,20 +6,20 @@ from pathlib import Path
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from mcplens.backend.discovery import discover_all_tools
-from mcplens.backend.manager import BackendManager
-from mcplens.config import load_config
-from mcplens.index.embeddings import create_embedding_client
-from mcplens.index.mfu import MFUCache
-from mcplens.index.vector import VectorIndex
-from mcplens.proxy.router import Router
-from mcplens.proxy.tools import META_TOOLS
+from mcpfind.backend.discovery import discover_all_tools
+from mcpfind.backend.manager import BackendManager
+from mcpfind.config import load_config
+from mcpfind.index.embeddings import create_embedding_client
+from mcpfind.index.mfu import MFUCache
+from mcpfind.index.vector import VectorIndex
+from mcpfind.proxy.router import Router
+from mcpfind.proxy.tools import META_TOOLS
 
 logger = logging.getLogger(__name__)
 
 
 async def run_proxy(config_path: str) -> None:
-    """Start the MCPLens proxy server."""
+    """Start the MCPFind proxy server."""
     config = load_config(config_path)
 
     # Start backend connections
@@ -62,7 +62,7 @@ async def run_proxy(config_path: str) -> None:
         )
 
         # Create MCP server
-        app = Server("mcplens")
+        app = Server("mcpfind")
 
         @app.list_tools()
         async def list_tools():
@@ -80,7 +80,7 @@ async def run_proxy(config_path: str) -> None:
                 raise ValueError(f"Unknown tool: {name}")
 
         # Run server
-        logger.info("MCPLens proxy server starting...")
+        logger.info("MCPFind proxy server starting...")
         async with stdio_server() as (read_stream, write_stream):
             await app.run(
                 read_stream,

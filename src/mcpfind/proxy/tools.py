@@ -1,4 +1,4 @@
-"""Meta-tool definitions and schemas for the MCPLens proxy."""
+"""Meta-tool definitions and schemas for the MCPFind proxy."""
 
 from mcp.types import Tool
 

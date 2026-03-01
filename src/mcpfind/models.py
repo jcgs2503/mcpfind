@@ -1,4 +1,4 @@
-"""Data models for MCPLens."""
+"""Data models for MCPFind."""
 
 from dataclasses import dataclass, field
 

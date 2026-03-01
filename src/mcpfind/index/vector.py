@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from mcplens.models import ToolEntry
+from mcpfind.models import ToolEntry
 
 
 class VectorIndex:

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from mcplens.index.mfu import MFUCache
-from mcplens.index.vector import VectorIndex
-from mcplens.models import ToolEntry
-from mcplens.proxy.router import Router
+from mcpfind.index.mfu import MFUCache
+from mcpfind.index.vector import VectorIndex
+from mcpfind.models import ToolEntry
+from mcpfind.proxy.router import Router
 
 
 @pytest.fixture

@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from mcplens.index.vector import VectorIndex
-from mcplens.models import ToolEntry
+from mcpfind.index.vector import VectorIndex
+from mcpfind.models import ToolEntry
 
 
 def _make_entry(server: str, name: str, embedding: list[float]) -> ToolEntry:
