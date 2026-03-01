@@ -1,6 +1,5 @@
 """Tests for embedding disk cache."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from mcpfind.index.cache import (

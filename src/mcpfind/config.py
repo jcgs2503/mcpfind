@@ -77,21 +77,31 @@ def load_config(path: str | Path) -> ProxyConfig:
 def _merge_configs(global_cfg: ProxyConfig, local_cfg: ProxyConfig) -> ProxyConfig:
     """Merge global and local configs. Local overrides global for same-name servers."""
     merged = ProxyConfig(
-        embedding_provider=local_cfg.embedding_provider
-        if local_cfg.embedding_provider != "local"
-        else global_cfg.embedding_provider,
-        embedding_model=local_cfg.embedding_model
-        if local_cfg.embedding_model != "all-MiniLM-L6-v2"
-        else global_cfg.embedding_model,
-        mfu_boost_weight=local_cfg.mfu_boost_weight
-        if local_cfg.mfu_boost_weight != 0.15
-        else global_cfg.mfu_boost_weight,
-        mfu_persist=local_cfg.mfu_persist
-        if not local_cfg.mfu_persist
-        else global_cfg.mfu_persist,
-        default_max_results=local_cfg.default_max_results
-        if local_cfg.default_max_results != 5
-        else global_cfg.default_max_results,
+        embedding_provider=(
+            local_cfg.embedding_provider
+            if local_cfg.embedding_provider != "local"
+            else global_cfg.embedding_provider
+        ),
+        embedding_model=(
+            local_cfg.embedding_model
+            if local_cfg.embedding_model != "all-MiniLM-L6-v2"
+            else global_cfg.embedding_model
+        ),
+        mfu_boost_weight=(
+            local_cfg.mfu_boost_weight
+            if local_cfg.mfu_boost_weight != 0.15
+            else global_cfg.mfu_boost_weight
+        ),
+        mfu_persist=(
+            local_cfg.mfu_persist
+            if not local_cfg.mfu_persist
+            else global_cfg.mfu_persist
+        ),
+        default_max_results=(
+            local_cfg.default_max_results
+            if local_cfg.default_max_results != 5
+            else global_cfg.default_max_results
+        ),
     )
 
     # Servers: global as base, local same-name overrides, local unique gets added

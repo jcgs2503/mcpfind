@@ -383,7 +383,9 @@ def _build_toml(
 
 def _build_local_toml(servers: list[dict]) -> str:
     """Generate a minimal project-local mcpfind.toml with only servers."""
-    lines = ["# Project-local MCPFind config — servers here override/extend global config"]
+    lines = [
+        "# Project-local MCPFind config" " — servers here override/extend global config"
+    ]
 
     for server in servers:
         lines.append("")
@@ -410,7 +412,9 @@ def run_setup() -> None:
     click.echo("=" * 50)
     click.echo("  MCPFind Setup")
     click.echo("=" * 50)
-    click.echo(f"\nThis wizard will create your global config at:\n  {GLOBAL_CONFIG_PATH}")
+    click.echo(
+        f"\nThis wizard will create your global config at:" f"\n  {GLOBAL_CONFIG_PATH}"
+    )
 
     # Step 1: Detect existing MCP client configs
     detected = _detect_client_configs()
@@ -463,9 +467,7 @@ def run_setup() -> None:
     click.echo("\n--- Generated Configuration ---\n")
     click.echo(toml_content)
 
-    output_path = click.prompt(
-        "\nSave to", default=str(GLOBAL_CONFIG_PATH), type=str
-    )
+    output_path = click.prompt("\nSave to", default=str(GLOBAL_CONFIG_PATH), type=str)
     path = Path(output_path)
 
     if path.exists():
@@ -525,7 +527,9 @@ def run_init() -> None:
     click.echo(
         f"\nThis will create ./{LOCAL_CONFIG_NAME} with project-specific servers."
     )
-    click.echo("These servers will be merged with (and can override) your global config.\n")
+    click.echo(
+        "These servers will be merged with" " (and can override) your global config.\n"
+    )
 
     if local_path.exists():
         if not click.confirm(f"{local_path} already exists. Overwrite?"):
