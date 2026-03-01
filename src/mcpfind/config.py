@@ -6,7 +6,7 @@ from pathlib import Path
 
 import tomli
 
-from mcplens.models import ProxyConfig, ServerConfig
+from mcpfind.models import ProxyConfig, ServerConfig
 
 
 def _expand_env_vars(value: str) -> str:
@@ -32,7 +32,7 @@ def _expand_env_in_dict(d: dict) -> dict:
 
 
 def load_config(path: str | Path) -> ProxyConfig:
-    """Load and validate a MCPLens configuration file."""
+    """Load and validate a MCPFind configuration file."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mcplens.config import load_config
+from mcpfind.config import load_config
 
 
 def _write_toml(path: Path, content: str) -> None:
