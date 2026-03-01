@@ -7,6 +7,7 @@ name = "mcplens"
 version = "0.1.0"
 description = "Context-efficient MCP tool proxy with semantic search"
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
     "mcp>=1.0",

@@ -1,5 +1,7 @@
 # MCPLens
 
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
+
 Context-efficient MCP tool proxy with semantic search. MCPLens sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 3 meta-tools (~500 tokens).
 
 ```
