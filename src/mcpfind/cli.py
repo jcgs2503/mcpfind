@@ -1,16 +1,16 @@
-"""MCPLens CLI entry point."""
+"""MCPFind CLI entry point."""
 
 import asyncio
 import logging
 
 import click
 
-from mcplens.config import load_config
+from mcpfind.config import load_config
 
 
 @click.group()
 def main():
-    """MCPLens: Context-efficient MCP tool proxy."""
+    """MCPFind: Context-efficient MCP tool proxy."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
@@ -18,12 +18,12 @@ def main():
 @click.option(
     "--config",
     "config_path",
-    default="mcplens.toml",
+    default="mcpfind.toml",
     help="Path to configuration file.",
 )
 def serve(config_path: str):
-    """Start the MCPLens proxy server (stdio MCP transport)."""
-    from mcplens.proxy.server import run_proxy
+    """Start the MCPFind proxy server (stdio MCP transport)."""
+    from mcpfind.proxy.server import run_proxy
 
     asyncio.run(run_proxy(config_path))
 
@@ -32,15 +32,15 @@ def serve(config_path: str):
 @click.option(
     "--config",
     "config_path",
-    default="mcplens.toml",
+    default="mcpfind.toml",
     help="Path to configuration file.",
 )
 def list_tools(config_path: str):
     """List all tools discovered from backend servers."""
 
     async def _list():
-        from mcplens.backend.discovery import discover_all_tools
-        from mcplens.backend.manager import BackendManager
+        from mcpfind.backend.discovery import discover_all_tools
+        from mcpfind.backend.manager import BackendManager
 
         config = load_config(config_path)
         manager = BackendManager(config.servers)
@@ -61,7 +61,7 @@ def list_tools(config_path: str):
 @click.option(
     "--config",
     "config_path",
-    default="mcplens.toml",
+    default="mcpfind.toml",
     help="Path to configuration file.",
 )
 @click.option("--max-results", "-k", default=5, help="Number of results to return.")
@@ -69,10 +69,10 @@ def search(query: str, config_path: str, max_results: int):
     """Test semantic search against discovered tools."""
 
     async def _search():
-        from mcplens.backend.discovery import discover_all_tools
-        from mcplens.backend.manager import BackendManager
-        from mcplens.index.embeddings import create_embedding_client
-        from mcplens.index.vector import VectorIndex
+        from mcpfind.backend.discovery import discover_all_tools
+        from mcpfind.backend.manager import BackendManager
+        from mcpfind.index.embeddings import create_embedding_client
+        from mcpfind.index.vector import VectorIndex
 
         config = load_config(config_path)
         manager = BackendManager(config.servers)

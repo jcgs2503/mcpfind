@@ -2,8 +2,8 @@
 
 import logging
 
-from mcplens.backend.manager import BackendManager
-from mcplens.models import ToolEntry
+from mcpfind.backend.manager import BackendManager
+from mcpfind.models import ToolEntry
 
 logger = logging.getLogger(__name__)
 

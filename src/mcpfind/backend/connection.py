@@ -5,7 +5,7 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from mcplens.models import ServerConfig
+from mcpfind.models import ServerConfig
 
 
 class MCPConnection:

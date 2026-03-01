@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from mcplens.index.mfu import MFUCache
+from mcpfind.index.mfu import MFUCache
 
 
 def test_boost_with_no_history():

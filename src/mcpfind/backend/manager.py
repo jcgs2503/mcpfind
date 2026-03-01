@@ -2,8 +2,8 @@
 
 import logging
 
-from mcplens.backend.connection import MCPConnection
-from mcplens.models import ServerConfig
+from mcpfind.backend.connection import MCPConnection
+from mcpfind.models import ServerConfig
 
 logger = logging.getLogger(__name__)
 

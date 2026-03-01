@@ -1,14 +1,14 @@
-# MCPLens
+# MCPFind
 
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
-Context-efficient MCP tool proxy with semantic search. MCPLens sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 3 meta-tools (~500 tokens).
+Context-efficient MCP tool proxy with semantic search. MCPFind sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 3 meta-tools (~500 tokens).
 
 ```
 Agent (Claude Desktop, Cursor, Claude Code, etc.)
   │  Sees only: search_tools, get_tool_schema, call_tool
   ▼
-MCPLens Proxy
+MCPFind Proxy
   ├── Vector search over all tool descriptions
   ├── Per-agent MFU cache for personalized ranking
   └── Routes calls to the correct backend server
@@ -30,22 +30,22 @@ As MCP toolspaces grow, every tool schema gets dumped into the agent's context:
 | 200 | ~40K | Agent picks wrong tools |
 | 1000 | ~200K | Unusable |
 
-MCPLens keeps context at ~500 tokens regardless of how many tools exist behind it. Agents discover tools via semantic search, pull schemas on demand, and call tools through the proxy.
+MCPFind keeps context at ~500 tokens regardless of how many tools exist behind it. Agents discover tools via semantic search, pull schemas on demand, and call tools through the proxy.
 
 ## Install
 
 ```bash
 # With uv (recommended)
-uv tool install mcplens
+uv tool install mcpfind
 
 # With pip
-pip install mcplens
+pip install mcpfind
 ```
 
-MCPLens uses local embeddings by default (via [fastembed](https://github.com/qdrant/fastembed)) — no API key needed. To use OpenAI embeddings instead:
+MCPFind uses local embeddings by default (via [fastembed](https://github.com/qdrant/fastembed)) — no API key needed. To use OpenAI embeddings instead:
 
 ```bash
-pip install mcplens[openai]
+pip install mcpfind[openai]
 export OPENAI_API_KEY="sk-..."
 ```
 
@@ -53,7 +53,7 @@ export OPENAI_API_KEY="sk-..."
 
 ### 1. Create a config file
 
-Create `mcplens.toml`:
+Create `mcpfind.toml`:
 
 ```toml
 [proxy]
@@ -80,19 +80,19 @@ args = ["mcp-server-filesystem", "/path/to/allowed/dir"]
 
 ```bash
 # List all tools discovered from your backend servers
-mcplens list-tools --config mcplens.toml
+mcpfind list-tools --config mcpfind.toml
 
 # Test semantic search
-mcplens search "create a pull request" --config mcplens.toml
+mcpfind search "create a pull request" --config mcpfind.toml
 ```
 
 ### 3. Run the proxy
 
 ```bash
-mcplens serve --config mcplens.toml
+mcpfind serve --config mcpfind.toml
 ```
 
-This starts MCPLens as a stdio MCP server. Point your MCP client at it instead of individual servers.
+This starts MCPFind as a stdio MCP server. Point your MCP client at it instead of individual servers.
 
 ## Adding MCP Servers
 
@@ -152,9 +152,9 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "mcplens": {
-      "command": "mcplens",
-      "args": ["serve", "--config", "/path/to/mcplens.toml"],
+    "mcpfind": {
+      "command": "mcpfind",
+      "args": ["serve", "--config", "/path/to/mcpfind.toml"],
       "env": {
         "GITHUB_TOKEN": "ghp_..."
       }
@@ -170,9 +170,9 @@ Add to your `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "mcplens": {
-      "command": "mcplens",
-      "args": ["serve", "--config", "/path/to/mcplens.toml"]
+    "mcpfind": {
+      "command": "mcpfind",
+      "args": ["serve", "--config", "/path/to/mcpfind.toml"]
     }
   }
 }
@@ -185,9 +185,9 @@ Add to your MCP settings:
 ```json
 {
   "mcpServers": {
-    "mcplens": {
-      "command": "mcplens",
-      "args": ["serve", "--config", "/path/to/mcplens.toml"]
+    "mcpfind": {
+      "command": "mcpfind",
+      "args": ["serve", "--config", "/path/to/mcpfind.toml"]
     }
   }
 }
@@ -195,13 +195,13 @@ Add to your MCP settings:
 
 ## How It Works
 
-MCPLens exposes exactly 3 tools to the agent:
+MCPFind exposes exactly 3 tools to the agent:
 
 1. **`search_tools`** — Find relevant tools by natural language query (e.g., "send an email"). Returns tool names, servers, and descriptions ranked by semantic similarity + usage frequency.
 
 2. **`get_tool_schema`** — Pull the full input schema for a specific tool before calling it. Keeps schemas out of context until actually needed.
 
-3. **`call_tool`** — Execute a tool on a backend server. MCPLens validates and routes the call to the correct server.
+3. **`call_tool`** — Execute a tool on a backend server. MCPFind validates and routes the call to the correct server.
 
 ### Agent workflow
 
@@ -218,7 +218,7 @@ Agent: call_tool(server="gmail", tool="send_email", arguments={...})
 
 ### MFU Cache
 
-MCPLens tracks which tools each agent uses most frequently. Frequently used tools get a ranking boost in search results via the `mfu_boost_weight` config option (default: 0.15). This means 85% of the ranking comes from semantic similarity and 15% from usage frequency.
+MCPFind tracks which tools each agent uses most frequently. Frequently used tools get a ranking boost in search results via the `mfu_boost_weight` config option (default: 0.15). This means 85% of the ranking comes from semantic similarity and 15% from usage frequency.
 
 Set `mfu_persist = true` to save usage data across restarts (stored in `mfu.db`).
 
@@ -243,13 +243,13 @@ env = { KEY = "value" }  # Optional: environment variables (${VAR} expansion sup
 
 ```bash
 # Start the proxy server (stdio MCP transport)
-mcplens serve --config mcplens.toml
+mcpfind serve --config mcpfind.toml
 
 # List all discovered tools from backend servers
-mcplens list-tools --config mcplens.toml
+mcpfind list-tools --config mcpfind.toml
 
 # Test semantic search
-mcplens search "query" --config mcplens.toml --max-results 10
+mcpfind search "query" --config mcpfind.toml --max-results 10
 ```
 
 ## Development
