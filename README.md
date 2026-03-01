@@ -42,12 +42,7 @@ uv tool install mcpfind
 pip install mcpfind
 ```
 
-MCPFind uses local embeddings by default (via [fastembed](https://github.com/qdrant/fastembed)) — no API key needed. To use OpenAI embeddings instead:
-
-```bash
-pip install mcpfind[openai]
-export OPENAI_API_KEY="sk-..."
-```
+No API key needed — MCPFind uses local embeddings by default.
 
 ## Quick Start
 
