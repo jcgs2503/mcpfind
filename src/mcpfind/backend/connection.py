@@ -1,5 +1,6 @@
 """MCP client connection to a single backend server."""
 
+import asyncio
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
@@ -60,5 +61,12 @@ class MCPConnection:
         return result.content
 
     async def close(self) -> None:
-        """Close the connection."""
-        await self._exit_stack.aclose()
+        """Close the connection gracefully."""
+        try:
+            await self._exit_stack.aclose()
+        except (RuntimeError, asyncio.CancelledError):
+            # The MCP stdio_client uses anyio task groups internally.
+            # Closing from outside the task context can trigger cancel
+            # scope errors — these are safe to suppress since the
+            # subprocess is being torn down regardless.
+            pass
