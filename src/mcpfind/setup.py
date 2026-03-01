@@ -338,7 +338,7 @@ def _configure_server(server: dict) -> dict:
     if "extra_args_prompt" in server:
         value = click.prompt(f"    {server['extra_args_prompt']}", default="", type=str)
         if value:
-            extra_args = value.split()
+            extra_args = [a.strip('"').strip("'") for a in value.split()]
 
     return {
         "name": server["name"],
