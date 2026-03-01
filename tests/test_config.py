@@ -57,7 +57,7 @@ command = "test"
 
         config = load_config(config_path)
         assert config.embedding_provider == "local"
-        assert config.embedding_model == "all-MiniLM-L6-v2"
+        assert config.embedding_model == "sentence-transformers/all-MiniLM-L6-v2"
         assert config.mfu_boost_weight == 0.15
         assert config.mfu_persist is True
         assert config.default_max_results == 5

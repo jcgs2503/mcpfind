@@ -280,7 +280,7 @@ def _pick_embedding_provider() -> tuple[str, str]:
     if choice == "2":
         model = click.prompt("OpenAI model", default="text-embedding-3-small", type=str)
         return "openai", model
-    return "local", "all-MiniLM-L6-v2"
+    return "local", "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def _pick_servers() -> list[dict]:

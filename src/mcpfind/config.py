@@ -6,7 +6,7 @@ from pathlib import Path
 
 import tomli
 
-from mcpfind.models import ProxyConfig, ServerConfig
+from mcpfind.models import DEFAULT_LOCAL_MODEL, ProxyConfig, ServerConfig
 
 GLOBAL_CONFIG_PATH = Path.home() / ".config" / "mcpfind" / "mcpfind.toml"
 LOCAL_CONFIG_NAME = "mcpfind.toml"
@@ -46,7 +46,7 @@ def load_config(path: str | Path) -> ProxyConfig:
     proxy_data = data.get("proxy", {})
     config = ProxyConfig(
         embedding_provider=proxy_data.get("embedding_provider", "local"),
-        embedding_model=proxy_data.get("embedding_model", "all-MiniLM-L6-v2"),
+        embedding_model=proxy_data.get("embedding_model", DEFAULT_LOCAL_MODEL),
         mfu_boost_weight=proxy_data.get("mfu_boost_weight", 0.15),
         mfu_persist=proxy_data.get("mfu_persist", True),
         default_max_results=proxy_data.get("default_max_results", 5),
@@ -84,7 +84,7 @@ def _merge_configs(global_cfg: ProxyConfig, local_cfg: ProxyConfig) -> ProxyConf
         ),
         embedding_model=(
             local_cfg.embedding_model
-            if local_cfg.embedding_model != "all-MiniLM-L6-v2"
+            if local_cfg.embedding_model != DEFAULT_LOCAL_MODEL
             else global_cfg.embedding_model
         ),
         mfu_boost_weight=(
