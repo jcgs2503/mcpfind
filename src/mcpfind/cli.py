@@ -57,6 +57,14 @@ def list_tools(config_path: str):
 
 
 @main.command()
+def setup():
+    """Interactive setup wizard — configure embedding provider and MCP servers."""
+    from mcpfind.setup import run_setup
+
+    run_setup()
+
+
+@main.command()
 @click.argument("query")
 @click.option(
     "--config",
