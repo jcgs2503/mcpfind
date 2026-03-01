@@ -2,13 +2,50 @@
 
 from __future__ import annotations
 
+import json
+import platform
 from pathlib import Path
 
 import click
 
+# Known MCP client config locations
+MCP_CLIENT_CONFIGS: list[dict] = [
+    {
+        "name": "Claude Desktop",
+        "paths": {
+            "Darwin": Path.home()
+            / "Library"
+            / "Application Support"
+            / "Claude"
+            / "claude_desktop_config.json",
+            "Linux": Path.home() / ".config" / "claude" / "claude_desktop_config.json",
+            "Windows": Path.home()
+            / "AppData"
+            / "Roaming"
+            / "Claude"
+            / "claude_desktop_config.json",
+        },
+    },
+    {
+        "name": "Claude Code",
+        "paths": {
+            "Darwin": Path.home() / ".claude" / "mcp.json",
+            "Linux": Path.home() / ".claude" / "mcp.json",
+            "Windows": Path.home() / ".claude" / "mcp.json",
+        },
+    },
+    {
+        "name": "Cursor",
+        "paths": {
+            "Darwin": Path.home() / ".cursor" / "mcp.json",
+            "Linux": Path.home() / ".cursor" / "mcp.json",
+            "Windows": Path.home() / ".cursor" / "mcp.json",
+        },
+    },
+]
+
 # Popular MCP servers organized by category
 POPULAR_SERVERS: list[dict] = [
-    # Developer Tools
     {
         "name": "github",
         "display": "GitHub",
@@ -28,7 +65,6 @@ POPULAR_SERVERS: list[dict] = [
             "GITLAB_API_URL": "GitLab API URL (default: https://gitlab.com/api/v4)",
         },
     },
-    # File & Data
     {
         "name": "filesystem",
         "display": "Filesystem",
@@ -56,7 +92,6 @@ POPULAR_SERVERS: list[dict] = [
         "extra_args_prompt": "Path to SQLite database file",
         "env_vars": {},
     },
-    # Communication
     {
         "name": "slack",
         "display": "Slack",
@@ -73,7 +108,6 @@ POPULAR_SERVERS: list[dict] = [
         "args": ["-y", "@modelcontextprotocol/server-gdrive"],
         "env_vars": {},
     },
-    # Web & Search
     {
         "name": "brave-search",
         "display": "Brave Search",
@@ -90,7 +124,6 @@ POPULAR_SERVERS: list[dict] = [
         "args": ["mcp-server-fetch"],
         "env_vars": {},
     },
-    # Browser & Automation
     {
         "name": "playwright",
         "display": "Playwright (Browser)",
@@ -107,7 +140,6 @@ POPULAR_SERVERS: list[dict] = [
         "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
         "env_vars": {},
     },
-    # Memory & Knowledge
     {
         "name": "memory",
         "display": "Memory (Knowledge Graph)",
@@ -117,6 +149,121 @@ POPULAR_SERVERS: list[dict] = [
         "env_vars": {},
     },
 ]
+
+
+def _detect_client_configs() -> list[tuple[str, Path, dict]]:
+    """Detect existing MCP client configs and parse their servers.
+
+    Returns list of (client_name, config_path, servers_dict).
+    """
+    system = platform.system()
+    found = []
+
+    for client in MCP_CLIENT_CONFIGS:
+        path = client["paths"].get(system)
+        if path and path.exists():
+            try:
+                data = json.loads(path.read_text())
+                servers = data.get("mcpServers", {})
+                if servers:
+                    found.append((client["name"], path, servers))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    return found
+
+
+def _import_from_clients(
+    detected: list[tuple[str, Path, dict]],
+) -> list[dict]:
+    """Let user import servers from detected MCP client configs."""
+    click.echo("\n--- Import Existing MCP Servers ---\n")
+    click.echo("Found MCP servers in:\n")
+
+    all_servers: list[tuple[str, str, dict]] = []  # (client, name, config)
+
+    for client_name, config_path, servers in detected:
+        click.echo(f"  {client_name} ({config_path}):")
+        for name, config in servers.items():
+            click.echo(f"    - {name}")
+            all_servers.append((client_name, name, config))
+        click.echo()
+
+    click.echo(f"  Total: {len(all_servers)} server(s) found\n")
+
+    if not click.confirm("Import these servers into MCPFind?", default=True):
+        return []
+
+    # Let user deselect specific servers
+    imported = []
+    for client_name, name, config in all_servers:
+        if click.confirm(f"  Import '{name}' from {client_name}?", default=True):
+            server_entry = {
+                "name": name,
+                "command": config.get("command", ""),
+                "args": config.get("args", []),
+                "env": config.get("env", {}),
+            }
+            # Clean out empty env values
+            server_entry["env"] = {k: v for k, v in server_entry["env"].items() if v}
+            imported.append(server_entry)
+
+    if imported:
+        click.echo(f"\n  Imported {len(imported)} server(s).")
+
+    return imported
+
+
+def _install_to_clients(
+    detected: list[tuple[str, Path, dict]],
+    config_path: str,
+) -> None:
+    """Replace individual MCP servers in client configs with MCPFind proxy."""
+    click.echo("\n--- Install MCPFind into MCP Clients ---\n")
+    click.echo(
+        "This will replace individual MCP servers in your client configs\n"
+        "with a single MCPFind proxy entry. Your original servers will be\n"
+        "managed by MCPFind via the config file.\n"
+    )
+
+    abs_config = str(Path(config_path).resolve())
+
+    mcpfind_entry = {
+        "command": "mcpfind",
+        "args": ["serve", "--config", abs_config],
+    }
+
+    system = platform.system()
+    for client in MCP_CLIENT_CONFIGS:
+        path = client["paths"].get(system)
+        if not path or not path.exists():
+            continue
+
+        client_name = client["name"]
+        if not click.confirm(f"  Replace servers in {client_name} with MCPFind proxy?"):
+            continue
+
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            click.echo(f"    Could not read {path}, skipping.")
+            continue
+
+        old_servers = data.get("mcpServers", {})
+
+        # Back up original config
+        backup_path = path.with_suffix(".json.bak")
+        if not backup_path.exists():
+            backup_path.write_text(json.dumps(data, indent=2))
+            click.echo(f"    Backed up to {backup_path}")
+
+        # Replace with MCPFind entry
+        data["mcpServers"] = {"mcpfind": mcpfind_entry}
+        path.write_text(json.dumps(data, indent=2) + "\n")
+        click.echo(
+            f"    Updated {client_name} — "
+            f"replaced {len(old_servers)} server(s) with MCPFind proxy."
+        )
 
 
 def _pick_embedding_provider() -> tuple[str, str]:
@@ -139,7 +286,6 @@ def _pick_servers() -> list[dict]:
     click.echo("\n--- Add MCP Servers ---\n")
     click.echo("Select servers to add (you can add custom ones later).\n")
 
-    # Group by category
     categories: dict[str, list[dict]] = {}
     for server in POPULAR_SERVERS:
         cat = server["category"]
@@ -147,7 +293,6 @@ def _pick_servers() -> list[dict]:
             categories[cat] = []
         categories[cat].append(server)
 
-    # Display numbered list
     numbered: list[dict] = []
     for category, servers in categories.items():
         click.echo(f"  {category}:")
@@ -241,16 +386,31 @@ def run_setup() -> None:
     click.echo("=" * 50)
     click.echo("\nThis wizard will create a mcpfind.toml config file.")
 
-    # Step 1: Embedding provider
+    # Step 1: Detect existing MCP client configs
+    detected = _detect_client_configs()
+    imported_servers: list[dict] = []
+    if detected:
+        imported_servers = _import_from_clients(detected)
+
+    # Step 2: Embedding provider
     provider, model = _pick_embedding_provider()
 
-    # Step 2: Pick servers
-    selected_servers = _pick_servers()
+    # Step 3: Pick additional servers from catalog
+    configured = list(imported_servers)
 
-    # Step 3: Configure each server
-    configured = []
-    for server in selected_servers:
-        configured.append(_configure_server(server))
+    # Check if user already has servers imported
+    if imported_servers:
+        add_more = click.confirm("\nAdd more servers from the catalog?", default=False)
+    else:
+        add_more = True
+
+    if add_more:
+        # Filter out already-imported server names
+        existing_names = {s["name"] for s in configured}
+        selected_servers = _pick_servers()
+        for server in selected_servers:
+            if server["name"] not in existing_names:
+                configured.append(_configure_server(server))
 
     # Step 4: Custom server
     while True:
@@ -288,7 +448,11 @@ def run_setup() -> None:
     path.write_text(toml_content)
     click.echo(f"\nConfig saved to {path}")
 
-    # Step 6: OpenAI install hint
+    # Step 6: Install MCPFind proxy into client configs
+    if detected and configured:
+        _install_to_clients(detected, output_path)
+
+    # Step 7: Final instructions
     if provider == "openai":
         click.echo("\nTo use OpenAI embeddings, install the extra:")
         click.echo("  pip install mcpfind[openai]")
