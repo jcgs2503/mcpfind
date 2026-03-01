@@ -42,7 +42,8 @@ def load_config(path: str | Path) -> ProxyConfig:
 
     proxy_data = data.get("proxy", {})
     config = ProxyConfig(
-        embedding_model=proxy_data.get("embedding_model", "text-embedding-3-small"),
+        embedding_provider=proxy_data.get("embedding_provider", "local"),
+        embedding_model=proxy_data.get("embedding_model", "all-MiniLM-L6-v2"),
         mfu_boost_weight=proxy_data.get("mfu_boost_weight", 0.15),
         mfu_persist=proxy_data.get("mfu_persist", True),
         default_max_results=proxy_data.get("default_max_results", 5),

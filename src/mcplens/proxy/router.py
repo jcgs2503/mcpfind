@@ -6,7 +6,7 @@ import logging
 from mcp.types import TextContent
 
 from mcplens.backend.manager import BackendManager
-from mcplens.index.embeddings import EmbeddingClient
+from mcplens.index.embeddings import BaseEmbeddingClient
 from mcplens.index.mfu import MFUCache
 from mcplens.index.vector import VectorIndex
 from mcplens.models import SearchResult, ToolEntry
@@ -22,7 +22,7 @@ class Router:
         backend_manager: BackendManager,
         vector_index: VectorIndex,
         mfu_cache: MFUCache,
-        embedding_client: EmbeddingClient,
+        embedding_client: BaseEmbeddingClient,
         tool_entries: list[ToolEntry],
         default_max_results: int = 5,
     ) -> None:

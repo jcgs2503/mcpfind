@@ -71,7 +71,7 @@ def search(query: str, config_path: str, max_results: int):
     async def _search():
         from mcplens.backend.discovery import discover_all_tools
         from mcplens.backend.manager import BackendManager
-        from mcplens.index.embeddings import EmbeddingClient
+        from mcplens.index.embeddings import create_embedding_client
         from mcplens.index.vector import VectorIndex
 
         config = load_config(config_path)
@@ -80,7 +80,9 @@ def search(query: str, config_path: str, max_results: int):
         try:
             entries = await discover_all_tools(manager)
 
-            embedding_client = EmbeddingClient(model=config.embedding_model)
+            embedding_client = create_embedding_client(
+                provider=config.embedding_provider, model=config.embedding_model
+            )
             texts = [f"{e.name}: {e.description}" for e in entries]
             if texts:
                 embeddings = embedding_client.embed_batch(texts)

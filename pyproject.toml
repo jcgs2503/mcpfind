@@ -4,18 +4,21 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcplens"
-version = "0.1.0"
+version = "0.1.1"
 description = "Context-efficient MCP tool proxy with semantic search"
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
     "mcp>=1.0",
-    "openai",
+    "fastembed",
     "numpy",
     "click",
     "tomli",
 ]
+
+[project.optional-dependencies]
+openai = ["openai"]
 
 [project.scripts]
 mcplens = "mcplens.cli:main"

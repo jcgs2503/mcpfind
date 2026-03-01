@@ -5,3 +5,5 @@ dist/
 *.egg-info/
 mfu.db
 .pytest_cache/
+.env
+.env.*
