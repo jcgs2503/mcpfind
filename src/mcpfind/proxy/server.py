@@ -8,19 +8,18 @@ from mcp.server.stdio import stdio_server
 
 from mcpfind.backend.discovery import discover_all_tools
 from mcpfind.backend.manager import BackendManager
-from mcpfind.config import load_config
 from mcpfind.index.embeddings import create_embedding_client
 from mcpfind.index.mfu import MFUCache
 from mcpfind.index.vector import VectorIndex
+from mcpfind.models import ProxyConfig
 from mcpfind.proxy.router import Router
 from mcpfind.proxy.tools import META_TOOLS
 
 logger = logging.getLogger(__name__)
 
 
-async def run_proxy(config_path: str) -> None:
+async def run_proxy(config: ProxyConfig) -> None:
     """Start the MCPFind proxy server."""
-    config = load_config(config_path)
 
     # Start backend connections
     manager = BackendManager(config.servers)
@@ -31,15 +30,14 @@ async def run_proxy(config_path: str) -> None:
         entries = await discover_all_tools(manager)
         logger.info("Discovered %d tools total", len(entries))
 
-        # Embed tool descriptions
+        # Embed tool descriptions (with disk cache)
         embedding_client = create_embedding_client(
             provider=config.embedding_provider, model=config.embedding_model
         )
-        texts = [f"{e.name}: {e.description}" for e in entries]
-        if texts:
-            embeddings = embedding_client.embed_batch(texts)
-            for entry, emb in zip(entries, embeddings):
-                entry.embedding = emb
+        if entries:
+            from mcpfind.index.cache import embed_with_cache
+
+            embed_with_cache(entries, embedding_client)
 
         # Build vector index
         index = VectorIndex()
