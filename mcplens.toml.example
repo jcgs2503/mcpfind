@@ -1,0 +1,11 @@
+[proxy]
+embedding_model = "text-embedding-3-small"
+mfu_boost_weight = 0.15
+mfu_persist = true
+default_max_results = 5
+
+[[servers]]
+name = "example"
+command = "uvx"
+args = ["mcp-example-server"]
+# env = { API_TOKEN = "${API_TOKEN}" }
