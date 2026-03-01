@@ -1,1 +1,266 @@
-# mcp-lens
+# MCPLens
+
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
+
+Context-efficient MCP tool proxy with semantic search. MCPLens sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 3 meta-tools (~500 tokens).
+
+```
+Agent (Claude Desktop, Cursor, Claude Code, etc.)
+  │  Sees only: search_tools, get_tool_schema, call_tool
+  ▼
+MCPLens Proxy
+  ├── Vector search over all tool descriptions
+  ├── Per-agent MFU cache for personalized ranking
+  └── Routes calls to the correct backend server
+  │
+  ├──▶ Gmail MCP Server
+  ├──▶ GitHub MCP Server
+  ├──▶ Slack MCP Server
+  └──▶ ... N servers
+```
+
+## Why
+
+As MCP toolspaces grow, every tool schema gets dumped into the agent's context:
+
+| Tools | Context tokens | Effect |
+|-------|---------------|--------|
+| 10 | ~2K | Fine |
+| 50 | ~10K | Manageable |
+| 200 | ~40K | Agent picks wrong tools |
+| 1000 | ~200K | Unusable |
+
+MCPLens keeps context at ~500 tokens regardless of how many tools exist behind it. Agents discover tools via semantic search, pull schemas on demand, and call tools through the proxy.
+
+## Install
+
+```bash
+# With uv (recommended)
+uv tool install mcplens
+
+# With pip
+pip install mcplens
+```
+
+You also need an OpenAI API key for embeddings:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+## Quick Start
+
+### 1. Create a config file
+
+Create `mcplens.toml`:
+
+```toml
+[proxy]
+embedding_model = "text-embedding-3-small"
+mfu_boost_weight = 0.15
+mfu_persist = true
+default_max_results = 5
+
+[[servers]]
+name = "github"
+command = "uvx"
+args = ["mcp-server-github"]
+env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
+
+[[servers]]
+name = "filesystem"
+command = "uvx"
+args = ["mcp-server-filesystem", "/path/to/allowed/dir"]
+```
+
+### 2. Verify your setup
+
+```bash
+# List all tools discovered from your backend servers
+mcplens list-tools --config mcplens.toml
+
+# Test semantic search
+mcplens search "create a pull request" --config mcplens.toml
+```
+
+### 3. Run the proxy
+
+```bash
+mcplens serve --config mcplens.toml
+```
+
+This starts MCPLens as a stdio MCP server. Point your MCP client at it instead of individual servers.
+
+## Adding MCP Servers
+
+Each backend server is a `[[servers]]` entry in your config file:
+
+```toml
+[[servers]]
+name = "gmail"              # Unique name (used in search results and call_tool)
+command = "uvx"              # Command to launch the server
+args = ["mcp-gmail"]         # Arguments passed to the command
+env = { GMAIL_TOKEN = "${GMAIL_TOKEN}" }  # Environment variables (supports ${VAR} expansion)
+```
+
+### Examples
+
+**GitHub:**
+```toml
+[[servers]]
+name = "github"
+command = "uvx"
+args = ["mcp-server-github"]
+env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
+```
+
+**Filesystem:**
+```toml
+[[servers]]
+name = "filesystem"
+command = "uvx"
+args = ["mcp-server-filesystem", "/home/user/documents"]
+```
+
+**Slack:**
+```toml
+[[servers]]
+name = "slack"
+command = "uvx"
+args = ["mcp-server-slack"]
+env = { SLACK_BOT_TOKEN = "${SLACK_BOT_TOKEN}" }
+```
+
+**Custom / local server:**
+```toml
+[[servers]]
+name = "my-server"
+command = "python"
+args = ["-m", "my_mcp_server"]
+env = { MY_API_KEY = "${MY_API_KEY}" }
+```
+
+## Client Configuration
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcplens": {
+      "command": "mcplens",
+      "args": ["serve", "--config", "/path/to/mcplens.toml"],
+      "env": {
+        "OPENAI_API_KEY": "sk-...",
+        "GITHUB_TOKEN": "ghp_...",
+      }
+    }
+  }
+}
+```
+
+### Claude Code
+
+Add to your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcplens": {
+      "command": "mcplens",
+      "args": ["serve", "--config", "/path/to/mcplens.toml"]
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "mcplens": {
+      "command": "mcplens",
+      "args": ["serve", "--config", "/path/to/mcplens.toml"]
+    }
+  }
+}
+```
+
+## How It Works
+
+MCPLens exposes exactly 3 tools to the agent:
+
+1. **`search_tools`** — Find relevant tools by natural language query (e.g., "send an email"). Returns tool names, servers, and descriptions ranked by semantic similarity + usage frequency.
+
+2. **`get_tool_schema`** — Pull the full input schema for a specific tool before calling it. Keeps schemas out of context until actually needed.
+
+3. **`call_tool`** — Execute a tool on a backend server. MCPLens validates and routes the call to the correct server.
+
+### Agent workflow
+
+```
+Agent: search_tools("send an email")
+  → [{"server": "gmail", "name": "send_email", "score": 0.94}, ...]
+
+Agent: get_tool_schema(server="gmail", tool="send_email")
+  → {"type": "object", "properties": {"to": ..., "subject": ..., "body": ...}}
+
+Agent: call_tool(server="gmail", tool="send_email", arguments={...})
+  → "Email sent!"
+```
+
+### MFU Cache
+
+MCPLens tracks which tools each agent uses most frequently. Frequently used tools get a ranking boost in search results via the `mfu_boost_weight` config option (default: 0.15). This means 85% of the ranking comes from semantic similarity and 15% from usage frequency.
+
+Set `mfu_persist = true` to save usage data across restarts (stored in `mfu.db`).
+
+## Configuration Reference
+
+```toml
+[proxy]
+embedding_model = "text-embedding-3-small"  # OpenAI embedding model
+mfu_boost_weight = 0.15                     # Frequency boost weight (0.0-1.0)
+mfu_persist = true                          # Persist usage data to SQLite
+default_max_results = 5                     # Default number of search results
+
+[[servers]]
+name = "server-name"     # Required: unique identifier
+command = "command"       # Required: executable to launch
+args = ["arg1", "arg2"]  # Optional: command arguments
+env = { KEY = "value" }  # Optional: environment variables (${VAR} expansion supported)
+```
+
+## CLI Reference
+
+```bash
+# Start the proxy server (stdio MCP transport)
+mcplens serve --config mcplens.toml
+
+# List all discovered tools from backend servers
+mcplens list-tools --config mcplens.toml
+
+# Test semantic search
+mcplens search "query" --config mcplens.toml --max-results 10
+```
+
+## Development
+
+```bash
+# Clone and install
+git clone https://github.com/jcgs2503/mcp-lens.git
+cd mcp-lens
+uv sync
+
+# Run tests
+uv run pytest -v
+
+# Lint and format
+uv run ruff check .
+uv run black --check .
+```
