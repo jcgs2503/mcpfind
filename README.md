@@ -51,7 +51,17 @@ export OPENAI_API_KEY="sk-..."
 
 ## Quick Start
 
-### 1. Create a config file
+### 1. Run the setup wizard
+
+The easiest way to get started:
+
+```bash
+mcpfind setup
+```
+
+This walks you through choosing an embedding provider and adding popular MCP servers (GitHub, Slack, Filesystem, PostgreSQL, Brave Search, Playwright, and more). It generates a `mcpfind.toml` config file for you.
+
+### Or create a config file manually
 
 Create `mcpfind.toml`:
 
@@ -242,6 +252,9 @@ env = { KEY = "value" }  # Optional: environment variables (${VAR} expansion sup
 ## CLI Reference
 
 ```bash
+# Interactive setup wizard
+mcpfind setup
+
 # Start the proxy server (stdio MCP transport)
 mcpfind serve --config mcpfind.toml
 
