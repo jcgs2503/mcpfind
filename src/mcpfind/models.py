@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass, field
 
+DEFAULT_LOCAL_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
 
 @dataclass
 class ToolEntry:
@@ -39,7 +41,7 @@ class ProxyConfig:
     """Top-level proxy configuration."""
 
     embedding_provider: str = "local"
-    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model: str = DEFAULT_LOCAL_MODEL
     mfu_boost_weight: float = 0.15
     mfu_persist: bool = True
     default_max_results: int = 5

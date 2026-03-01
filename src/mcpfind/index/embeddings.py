@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from mcpfind.models import DEFAULT_LOCAL_MODEL
+
 
 class BaseEmbeddingClient(ABC):
     """Abstract embedding client interface."""
@@ -20,7 +22,7 @@ class BaseEmbeddingClient(ABC):
 class LocalEmbeddingClient(BaseEmbeddingClient):
     """Generates embeddings locally using fastembed (ONNX-based)."""
 
-    def __init__(self, model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model: str = DEFAULT_LOCAL_MODEL):
         from fastembed import TextEmbedding
 
         self._model = TextEmbedding(model_name=model)
@@ -77,10 +79,10 @@ def create_embedding_client(
 
     Args:
         provider: "local" (default, uses fastembed) or "openai".
-        model: Model name override. Defaults to "all-MiniLM-L6-v2" for local,
+        model: Model name override. Defaults to DEFAULT_LOCAL_MODEL for local,
                "text-embedding-3-small" for openai.
     """
     if provider == "openai":
         return OpenAIEmbeddingClient(model=model or "text-embedding-3-small")
     else:
-        return LocalEmbeddingClient(model=model or "all-MiniLM-L6-v2")
+        return LocalEmbeddingClient(model=model or DEFAULT_LOCAL_MODEL)

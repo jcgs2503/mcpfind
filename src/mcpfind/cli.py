@@ -16,9 +16,14 @@ def _resolve_config(config_path: str | None):
 
 
 @click.group()
-def main():
+@click.option("-v", "--verbose", is_flag=True, help="Show detailed log output.")
+@click.pass_context
+def main(ctx, verbose):
     """MCPFind: Context-efficient MCP tool proxy."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
+    level = logging.INFO if verbose else logging.WARNING
+    logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
 
 
 @main.command()
@@ -32,6 +37,7 @@ def serve(config_path: str | None):
     """Start the MCPFind proxy server (stdio MCP transport)."""
     from mcpfind.proxy.server import run_proxy
 
+    logging.getLogger().setLevel(logging.INFO)
     config = _resolve_config(config_path)
     asyncio.run(run_proxy(config))
 
