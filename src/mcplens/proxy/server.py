@@ -9,7 +9,7 @@ from mcp.server.stdio import stdio_server
 from mcplens.backend.discovery import discover_all_tools
 from mcplens.backend.manager import BackendManager
 from mcplens.config import load_config
-from mcplens.index.embeddings import EmbeddingClient
+from mcplens.index.embeddings import create_embedding_client
 from mcplens.index.mfu import MFUCache
 from mcplens.index.vector import VectorIndex
 from mcplens.proxy.router import Router
@@ -32,7 +32,9 @@ async def run_proxy(config_path: str) -> None:
         logger.info("Discovered %d tools total", len(entries))
 
         # Embed tool descriptions
-        embedding_client = EmbeddingClient(model=config.embedding_model)
+        embedding_client = create_embedding_client(
+            provider=config.embedding_provider, model=config.embedding_model
+        )
         texts = [f"{e.name}: {e.description}" for e in entries]
         if texts:
             embeddings = embedding_client.embed_batch(texts)

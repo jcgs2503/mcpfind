@@ -38,7 +38,8 @@ class ServerConfig:
 class ProxyConfig:
     """Top-level proxy configuration."""
 
-    embedding_model: str = "text-embedding-3-small"
+    embedding_provider: str = "local"
+    embedding_model: str = "all-MiniLM-L6-v2"
     mfu_boost_weight: float = 0.15
     mfu_persist: bool = True
     default_max_results: int = 5

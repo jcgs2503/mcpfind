@@ -1,5 +1,8 @@
 [proxy]
-embedding_model = "text-embedding-3-small"
+# Embedding provider: "local" (default, no API key needed) or "openai"
+embedding_provider = "local"
+# Model name (default: "all-MiniLM-L6-v2" for local, "text-embedding-3-small" for openai)
+embedding_model = "all-MiniLM-L6-v2"
 mfu_boost_weight = 0.15
 mfu_persist = true
 default_max_results = 5

@@ -42,9 +42,10 @@ uv tool install mcplens
 pip install mcplens
 ```
 
-You also need an OpenAI API key for embeddings:
+MCPLens uses local embeddings by default (via [fastembed](https://github.com/qdrant/fastembed)) — no API key needed. To use OpenAI embeddings instead:
 
 ```bash
+pip install mcplens[openai]
 export OPENAI_API_KEY="sk-..."
 ```
 
@@ -56,7 +57,9 @@ Create `mcplens.toml`:
 
 ```toml
 [proxy]
-embedding_model = "text-embedding-3-small"
+# Uses local embeddings by default — no API key needed
+embedding_provider = "local"          # or "openai"
+embedding_model = "all-MiniLM-L6-v2"  # or "text-embedding-3-small" for openai
 mfu_boost_weight = 0.15
 mfu_persist = true
 default_max_results = 5
@@ -153,8 +156,7 @@ Add to your `claude_desktop_config.json`:
       "command": "mcplens",
       "args": ["serve", "--config", "/path/to/mcplens.toml"],
       "env": {
-        "OPENAI_API_KEY": "sk-...",
-        "GITHUB_TOKEN": "ghp_...",
+        "GITHUB_TOKEN": "ghp_..."
       }
     }
   }
@@ -224,7 +226,8 @@ Set `mfu_persist = true` to save usage data across restarts (stored in `mfu.db`)
 
 ```toml
 [proxy]
-embedding_model = "text-embedding-3-small"  # OpenAI embedding model
+embedding_provider = "local"                # "local" (default) or "openai"
+embedding_model = "all-MiniLM-L6-v2"        # Model name (provider-specific)
 mfu_boost_weight = 0.15                     # Frequency boost weight (0.0-1.0)
 mfu_persist = true                          # Persist usage data to SQLite
 default_max_results = 5                     # Default number of search results
