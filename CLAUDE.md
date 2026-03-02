@@ -2,11 +2,11 @@
 
 ## What You're Building
 
-An MCP server that sits between any MCP client and N backend MCP servers. Instead of exposing all tool schemas to the agent (which bloats context linearly with toolspace size), MCPLens exposes **3 meta-tools**: `search_tools`, `get_tool_schema`, and `call_tool`. Agents discover tools via semantic vector search, pull schemas on demand, and call tools through the proxy. Context stays ~500 tokens regardless of whether there are 10 or 1,000 tools behind the proxy.
+An MCP server that sits between any MCP client and N backend MCP servers. Instead of exposing all tool schemas to the agent (which bloats context linearly with toolspace size), MCPLens exposes **4 meta-tools**: `list_servers`, `search_tools`, `get_tool_schema`, and `call_tool`. Agents discover tools via semantic vector search, pull schemas on demand, and call tools through the proxy. Context stays ~500 tokens regardless of whether there are 10 or 1,000 tools behind the proxy.
 
 ```
 Agent (any MCP client)
-  │  Sees only: search_tools, get_tool_schema, call_tool (~500 tokens)
+  │  Sees only: list_servers, search_tools, get_tool_schema, call_tool (~500 tokens)
   │
   ▼
 MCPLens Proxy (this project)
@@ -37,12 +37,22 @@ LangChain's `langgraph-bigtool` solves this but is framework-locked to LangGraph
 
 MCPLens: framework-agnostic, vector search, MFU cache, benchmarked.
 
-## The Three Meta-Tools
+## The Four Meta-Tools
 
 These are the ONLY tools the agent sees in its context:
 
 ```python
-# 1. search_tools — find relevant tools by natural language query
+# 1. list_servers — see what MCP servers are connected
+{
+    "name": "list_servers",
+    "description": "List all connected MCP servers. Returns server names and tool counts. Use this to see what servers are available before searching.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {}
+    }
+}
+
+# 2. search_tools — find relevant tools by natural language query
 {
     "name": "search_tools",
     "description": "Search available tools by natural language description. Returns tool names, servers, and short descriptions. Use this first to discover what tools are available for your task.",
@@ -52,6 +62,10 @@ These are the ONLY tools the agent sees in its context:
             "query": {
                 "type": "string",
                 "description": "Natural language description of what you want to do, e.g. 'send email', 'create calendar event', 'search files'"
+            },
+            "server": {
+                "type": "string",
+                "description": "Filter results to a specific server. Optional — omit to search across all servers."
             },
             "max_results": {
                 "type": "integer",
@@ -67,7 +81,7 @@ These are the ONLY tools the agent sees in its context:
     }
 }
 
-# 2. get_tool_schema — pull full input schema for a specific tool
+# 3. get_tool_schema — pull full input schema for a specific tool
 {
     "name": "get_tool_schema",
     "description": "Get the full input schema for a specific tool. Use after search_tools to get the exact parameters needed before calling a tool.",
@@ -81,7 +95,7 @@ These are the ONLY tools the agent sees in its context:
     }
 }
 
-# 3. call_tool — execute a tool on a backend MCP server
+# 4. call_tool — execute a tool on a backend MCP server
 {
     "name": "call_tool",
     "description": "Execute a tool on a connected MCP server. Use get_tool_schema first to know the required arguments.",
@@ -133,7 +147,7 @@ On startup:
 2. Call `list_tools` on each
 3. Embed all tool descriptions (batched API call to embedding model)
 4. Build vector index
-5. Start MCPLens as an MCP server (stdio) exposing the 3 meta-tools
+5. Start MCPLens as an MCP server (stdio) exposing the 4 meta-tools
 
 ## Configuration
 

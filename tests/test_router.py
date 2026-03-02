@@ -87,6 +87,18 @@ def router(tool_entries):
 
 
 @pytest.mark.asyncio
+async def test_list_servers(router):
+    result = await router.handle_list_servers({})
+    assert len(result) == 1
+    data = json.loads(result[0].text)
+    assert len(data) == 3
+    servers = {s["server"]: s["tool_count"] for s in data}
+    assert servers["gmail"] == 1
+    assert servers["github"] == 1
+    assert servers["slack"] == 1
+
+
+@pytest.mark.asyncio
 async def test_search_returns_results(router):
     result = await router.handle_search({"query": "send email"})
     assert len(result) == 1
@@ -95,6 +107,22 @@ async def test_search_returns_results(router):
     # gmail:send_email should be top result (embedding matches query)
     assert data[0]["server"] == "gmail"
     assert data[0]["name"] == "send_email"
+
+
+@pytest.mark.asyncio
+async def test_search_filters_by_server(router):
+    result = await router.handle_search({"query": "send email", "server": "github"})
+    data = json.loads(result[0].text)
+    assert all(r["server"] == "github" for r in data)
+
+
+@pytest.mark.asyncio
+async def test_search_filter_unknown_server_returns_empty(router):
+    result = await router.handle_search(
+        {"query": "send email", "server": "nonexistent"}
+    )
+    data = json.loads(result[0].text)
+    assert data == []
 
 
 @pytest.mark.asyncio

@@ -39,19 +39,37 @@ class Router:
             key = f"{entry.server}:{entry.name}"
             self._schema_lookup[key] = entry.full_schema
 
+    async def handle_list_servers(self, arguments: dict) -> list[TextContent]:
+        """Handle list_servers meta-tool call."""
+        server_counts: dict[str, int] = {}
+        for entry in self._entries:
+            server_counts[entry.server] = server_counts.get(entry.server, 0) + 1
+
+        output = [
+            {"server": name, "tool_count": count}
+            for name, count in sorted(server_counts.items())
+        ]
+        return [TextContent(type="text", text=json.dumps(output, indent=2))]
+
     async def handle_search(self, arguments: dict) -> list[TextContent]:
         """Handle search_tools meta-tool call."""
         query = arguments["query"]
         max_results = arguments.get("max_results", self._default_max_results)
         agent_id = arguments.get("agent_id", "default")
+        server_filter = arguments.get("server")
 
         query_embedding = self._embeddings.embed_query(query)
-        raw_results = self._index.search(query_embedding, k=max_results)
 
-        # Build results with scores
+        # Fetch extra results when filtering so we have enough after filtering
+        fetch_k = max_results * 3 if server_filter else max_results
+        raw_results = self._index.search(query_embedding, k=fetch_k)
+
+        # Build results with scores, applying server filter
         scored = []
         for idx, score in raw_results:
             entry = self._index.get_entry(idx)
+            if server_filter and entry.server != server_filter:
+                continue
             scored.append((entry.server, entry.name, score))
 
         # Apply MFU boost
