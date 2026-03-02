@@ -1,0 +1,182 @@
+[
+  {
+    "query": "send an email to the engineering team about the upcoming release",
+    "expected_server": "gmail",
+    "expected_tool": "send_email",
+    "category": "communication"
+  },
+  {
+    "query": "find all emails from Sarah about the Q4 budget",
+    "expected_server": "gmail",
+    "expected_tool": "search_emails",
+    "category": "communication"
+  },
+  {
+    "query": "show me the full email thread with the subject 'Contract Review'",
+    "expected_server": "gmail",
+    "expected_tool": "read_email",
+    "category": "communication"
+  },
+  {
+    "query": "prepare a draft reply to the vendor but don't send it yet",
+    "expected_server": "gmail",
+    "expected_tool": "draft_email",
+    "category": "communication"
+  },
+  {
+    "query": "file a bug report about the login page crash on mobile",
+    "expected_server": "github",
+    "expected_tool": "create_issue",
+    "category": "dev-tools"
+  },
+  {
+    "query": "open a PR to merge the feature branch into main",
+    "expected_server": "github",
+    "expected_tool": "create_pull_request",
+    "category": "dev-tools"
+  },
+  {
+    "query": "show me all open pull requests that need review",
+    "expected_server": "github",
+    "expected_tool": "list_pull_requests",
+    "category": "dev-tools"
+  },
+  {
+    "query": "find where the authentication middleware is implemented in the repo",
+    "expected_server": "github",
+    "expected_tool": "search_code",
+    "category": "dev-tools"
+  },
+  {
+    "query": "post an update in the #engineering channel about the deployment",
+    "expected_server": "slack",
+    "expected_tool": "post_message",
+    "category": "communication"
+  },
+  {
+    "query": "find the conversation where we discussed the API rate limits",
+    "expected_server": "slack",
+    "expected_tool": "search_messages",
+    "category": "communication"
+  },
+  {
+    "query": "what Slack channels do we have?",
+    "expected_server": "slack",
+    "expected_tool": "list_channels",
+    "category": "communication"
+  },
+  {
+    "query": "DM Alex to ask about the code review status",
+    "expected_server": "slack",
+    "expected_tool": "send_direct_message",
+    "category": "communication"
+  },
+  {
+    "query": "read the contents of the configuration file at /etc/app/config.yaml",
+    "expected_server": "filesystem",
+    "expected_tool": "read_file",
+    "category": "files"
+  },
+  {
+    "query": "save the generated report to /tmp/report.csv",
+    "expected_server": "filesystem",
+    "expected_tool": "write_file",
+    "category": "files"
+  },
+  {
+    "query": "show me what files are in the project's src directory",
+    "expected_server": "filesystem",
+    "expected_tool": "list_directory",
+    "category": "files"
+  },
+  {
+    "query": "find all Python test files in the repository",
+    "expected_server": "filesystem",
+    "expected_tool": "search_files",
+    "category": "files"
+  },
+  {
+    "query": "schedule a team standup meeting for tomorrow at 10am",
+    "expected_server": "calendar",
+    "expected_tool": "create_event",
+    "category": "scheduling"
+  },
+  {
+    "query": "what meetings do I have this week?",
+    "expected_server": "calendar",
+    "expected_tool": "list_events",
+    "category": "scheduling"
+  },
+  {
+    "query": "cancel the 3pm meeting that was scheduled for Friday",
+    "expected_server": "calendar",
+    "expected_tool": "delete_event",
+    "category": "scheduling"
+  },
+  {
+    "query": "reschedule the design review to next Tuesday at 2pm",
+    "expected_server": "calendar",
+    "expected_tool": "update_event",
+    "category": "scheduling"
+  },
+  {
+    "query": "notify the team via email that the sprint is starting",
+    "expected_server": "gmail",
+    "expected_tool": "send_email",
+    "category": "communication"
+  },
+  {
+    "query": "create a GitHub issue to track the database migration work",
+    "expected_server": "github",
+    "expected_tool": "create_issue",
+    "category": "dev-tools"
+  },
+  {
+    "query": "let the #product channel know about the new feature launch",
+    "expected_server": "slack",
+    "expected_tool": "post_message",
+    "category": "communication"
+  },
+  {
+    "query": "write the API documentation to docs/api.md",
+    "expected_server": "filesystem",
+    "expected_tool": "write_file",
+    "category": "files"
+  },
+  {
+    "query": "set up a 1:1 with my manager for next Monday afternoon",
+    "expected_server": "calendar",
+    "expected_tool": "create_event",
+    "category": "scheduling"
+  },
+  {
+    "query": "check if there are any unread emails about the incident",
+    "expected_server": "gmail",
+    "expected_tool": "search_emails",
+    "category": "communication"
+  },
+  {
+    "query": "submit a pull request for the bugfix on the auth-cleanup branch",
+    "expected_server": "github",
+    "expected_tool": "create_pull_request",
+    "category": "dev-tools"
+  },
+  {
+    "query": "look up recent Slack messages mentioning the outage",
+    "expected_server": "slack",
+    "expected_tool": "search_messages",
+    "category": "communication"
+  },
+  {
+    "query": "check what's inside the /var/log/app directory",
+    "expected_server": "filesystem",
+    "expected_tool": "list_directory",
+    "category": "files"
+  },
+  {
+    "query": "see my upcoming calendar for the rest of today",
+    "expected_server": "calendar",
+    "expected_tool": "list_events",
+    "category": "scheduling"
+  }
+]
