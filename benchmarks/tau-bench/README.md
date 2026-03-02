@@ -70,22 +70,24 @@ communication, dev-tools, files, scheduling.
 | `local` | all-MiniLM-L6-v2 (fastembed) | 384 | Free | ~10-50ms/batch |
 | `openai` | text-embedding-3-small | 1536 | ~$0.02/1M tokens | ~100-500ms/batch |
 
+## API keys
+
+The benchmark reads API keys from environment variables. Add them to the
+project `.env` file or export them directly:
+
+```bash
+# For LLM benchmarks (raw / mcpfind modes)
+export ANTHROPIC_API_KEY=sk-ant-...    # for claude models
+export OPENAI_API_KEY=sk-...           # for gpt/o models
+
+# For OpenAI embeddings (--embedder openai)
+export OPENAI_API_KEY=sk-...
+```
+
+The `recall` mode with `--embedder local` needs **no API keys at all**.
+
 ## Output
 
-Results are saved as JSON in `results/`. Example summary:
-
-```
-==============================================================================
-RESULTS SUMMARY
-==============================================================================
-
-Embedder              Scale  Recall@k    MRR   k
---------------------------------------------------
-local                    20      100%  1.000   5
-local                   200       93%  0.870   5
-local                  1000       87%  0.720   5
-openai                   20      100%  1.000   5
-openai                  200       97%  0.940   5
-openai                 1000       93%  0.850   5
-==============================================================================
-```
+Results are saved as JSON in `results/`. A summary table is printed
+after each run showing accuracy, recall, token usage, and latency
+across all scale points.
