@@ -2,7 +2,7 @@
 
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
-Context-efficient MCP tool proxy with semantic search. MCPFind sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 3 meta-tools (~500 tokens).
+Context-efficient MCP tool proxy with semantic search. MCPFind sits between any MCP client and your backend MCP servers, replacing hundreds of tool schemas in the agent's context with just 4 meta-tools (~500 tokens).
 
 ```
 Agent (Claude Desktop, Cursor, Claude Code, etc.)
