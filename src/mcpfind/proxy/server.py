@@ -68,7 +68,9 @@ async def run_proxy(config: ProxyConfig) -> None:
 
         @app.call_tool()
         async def call_tool(name: str, arguments: dict):
-            if name == "search_tools":
+            if name == "list_servers":
+                return await router.handle_list_servers(arguments)
+            elif name == "search_tools":
                 return await router.handle_search(arguments)
             elif name == "get_tool_schema":
                 return await router.handle_get_schema(arguments)

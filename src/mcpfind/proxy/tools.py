@@ -2,6 +2,19 @@
 
 from mcp.types import Tool
 
+LIST_SERVERS = Tool(
+    name="list_servers",
+    description=(
+        "List all connected MCP servers. "
+        "Returns server names and tool counts. "
+        "Use this to see what servers are available before searching."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {},
+    },
+)
+
 SEARCH_TOOLS = Tool(
     name="search_tools",
     description=(
@@ -17,6 +30,13 @@ SEARCH_TOOLS = Tool(
                 "description": (
                     "Natural language description of what you want to do, "
                     "e.g. 'send email', 'create calendar event', 'search files'"
+                ),
+            },
+            "server": {
+                "type": "string",
+                "description": (
+                    "Filter results to a specific server. "
+                    "Optional — omit to search across all servers."
                 ),
             },
             "max_results": {
@@ -83,4 +103,4 @@ CALL_TOOL = Tool(
     },
 )
 
-META_TOOLS = [SEARCH_TOOLS, GET_TOOL_SCHEMA, CALL_TOOL]
+META_TOOLS = [LIST_SERVERS, SEARCH_TOOLS, GET_TOOL_SCHEMA, CALL_TOOL]
