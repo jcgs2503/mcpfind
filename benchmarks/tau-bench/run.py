@@ -3,6 +3,12 @@
 
 Benchmarks LLM tool selection accuracy as toolspace scales,
 comparing raw MCP (all schemas in context) vs MCPFind (search proxy).
+
+Modes:
+  recall  — search recall only (no API keys needed, fast)
+  raw     — all tool schemas in LLM context (needs LLM API key)
+  mcpfind — semantic search then LLM picks (needs LLM API key)
+  both    — raw + mcpfind
 """
 
 from __future__ import annotations
@@ -14,7 +20,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools import TARGET_TOOLS, format_tool_schema_for_prompt, generate_corpus
+from tools import (
+    TARGET_TOOLS,
+    format_tool_schema_for_prompt,
+    generate_corpus,
+)
 
 # ---------------------------------------------------------------------------
 # Prompt templates
@@ -35,7 +45,7 @@ Respond with ONLY a JSON object in this exact format, nothing else:
 MCPFIND_SYSTEM = """\
 You are a helpful assistant. You have access to a tool proxy with these meta-tools:
 
-1. list_servers() — List all connected MCP servers and their tool counts.
+1. list_servers() — List all connected MCP servers and tool counts.
 2. search_tools(query, server?) — Search tools by natural language.
 3. get_tool_schema(server, tool) — Get full input schema for a tool.
 4. call_tool(server, tool, arguments) — Execute a tool.
@@ -72,7 +82,12 @@ def _call_anthropic(
     )
     latency = (time.monotonic() - t0) * 1000
     text = resp.content[0].text
-    return text, resp.usage.input_tokens, resp.usage.output_tokens, latency
+    return (
+        text,
+        resp.usage.input_tokens,
+        resp.usage.output_tokens,
+        latency,
+    )
 
 
 def _call_openai(model: str, system: str, user_msg: str) -> tuple[str, int, int, float]:
@@ -110,30 +125,95 @@ def call_llm(model: str, system: str, user_msg: str) -> tuple[str, int, int, flo
 
 
 # ---------------------------------------------------------------------------
-# Search simulation (for MCPFind mode)
+# Embedding helpers
+# ---------------------------------------------------------------------------
+
+_embedding_cache: dict[str, object] = {}
+
+
+def _get_embedder(provider: str):
+    """Get or create an embedding model. Cached to avoid re-init."""
+    if provider in _embedding_cache:
+        return _embedding_cache[provider]
+
+    if provider == "local":
+        from fastembed import TextEmbedding
+
+        model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
+        _embedding_cache[provider] = model
+        return model
+    elif provider == "openai":
+        import openai
+
+        client = openai.OpenAI()
+        _embedding_cache[provider] = client
+        return client
+    else:
+        raise ValueError(f"Unknown embedding provider: {provider}")
+
+
+def embed_texts(texts: list[str], provider: str):
+    """Embed a list of texts. Returns numpy array of shape (n, dim)."""
+    import numpy as np
+
+    if provider == "local":
+        model = _get_embedder("local")
+        return np.array(list(model.embed(texts)), dtype=np.float32)
+    elif provider == "openai":
+        client = _get_embedder("openai")
+        # OpenAI batch limit is 2048, chunk if needed
+        all_embs = []
+        for i in range(0, len(texts), 2048):
+            batch = texts[i : i + 2048]
+            resp = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=batch,
+            )
+            all_embs.extend([d.embedding for d in resp.data])
+        return np.array(all_embs, dtype=np.float32)
+    else:
+        raise ValueError(f"Unknown provider: {provider}")
+
+
+# ---------------------------------------------------------------------------
+# Search simulation (for MCPFind and recall modes)
 # ---------------------------------------------------------------------------
 
 
-def simulate_mcpfind_search(query: str, corpus: list[dict], k: int = 5) -> list[dict]:
-    """Simulate MCPFind search using local embeddings.
+def simulate_mcpfind_search(
+    query: str,
+    corpus: list[dict],
+    k: int = 5,
+    embedder: str = "local",
+    _corpus_cache: dict | None = None,
+) -> list[dict]:
+    """Simulate MCPFind search using embeddings.
 
-    Embeds the query and corpus, returns top-k results.
-    This mirrors what the real MCPFind proxy does.
+    Args:
+        query: Natural language search query.
+        corpus: Tool corpus to search.
+        k: Number of results to return.
+        embedder: "local" or "openai".
+        _corpus_cache: Optional dict to cache corpus embeddings
+            across calls (mutated in place).
     """
     import numpy as np
-    from fastembed import TextEmbedding
 
-    model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
-
-    # Embed corpus descriptions
-    texts = [f"{t['name']}: {t['description']}" for t in corpus]
-    corpus_embs = np.array(list(model.embed(texts)), dtype=np.float32)
-    norms = np.linalg.norm(corpus_embs, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1, norms)
-    corpus_embs = corpus_embs / norms
+    # Embed corpus (use cache if provided)
+    cache_key = f"{embedder}:{len(corpus)}"
+    if _corpus_cache is not None and cache_key in _corpus_cache:
+        corpus_embs = _corpus_cache[cache_key]
+    else:
+        texts = [f"{t['name']}: {t['description']}" for t in corpus]
+        corpus_embs = embed_texts(texts, embedder)
+        norms = np.linalg.norm(corpus_embs, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)
+        corpus_embs = corpus_embs / norms
+        if _corpus_cache is not None:
+            _corpus_cache[cache_key] = corpus_embs
 
     # Embed query
-    query_emb = np.array(list(model.embed([query]))[0], dtype=np.float32)
+    query_emb = embed_texts([query], embedder)[0]
     norm = np.linalg.norm(query_emb)
     if norm > 0:
         query_emb = query_emb / norm
@@ -162,10 +242,11 @@ def simulate_mcpfind_search(query: str, corpus: list[dict], k: int = 5) -> list[
 # ---------------------------------------------------------------------------
 
 
-def parse_tool_selection(text: str) -> tuple[str | None, str | None]:
+def parse_tool_selection(
+    text: str,
+) -> tuple[str | None, str | None]:
     """Extract server and tool from LLM response."""
     text = text.strip()
-    # Try to find JSON in the response
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:
@@ -177,13 +258,86 @@ def parse_tool_selection(text: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def run_recall_mode(
+    tasks: list[dict],
+    corpus: list[dict],
+    search_k: int = 5,
+    embedder: str = "local",
+) -> dict:
+    """Measure search recall only — no LLM calls needed."""
+    corpus_cache: dict = {}
+    results = []
+    hits = 0
+
+    for i, task in enumerate(tasks):
+        query = task["query"]
+        label = f"  recall [{i + 1}/{len(tasks)}]"
+        print(f"{label} {query[:50]}...", end=" ")
+        sys.stdout.flush()
+
+        search_results = simulate_mcpfind_search(
+            query,
+            corpus,
+            k=search_k,
+            embedder=embedder,
+            _corpus_cache=corpus_cache,
+        )
+
+        hit = any(
+            r["server"] == task["expected_server"]
+            and r["name"] == task["expected_tool"]
+            for r in search_results
+        )
+        if hit:
+            hits += 1
+            print("HIT")
+        else:
+            print("MISS")
+
+        # Find rank of correct tool (if present at all)
+        rank = None
+        for j, r in enumerate(search_results):
+            if (
+                r["server"] == task["expected_server"]
+                and r["name"] == task["expected_tool"]
+            ):
+                rank = j + 1
+                break
+
+        results.append(
+            {
+                "query": query,
+                "expected": (f"{task['expected_server']}:{task['expected_tool']}"),
+                "hit": hit,
+                "rank": rank,
+                "top_results": [
+                    f"{r['server']}:{r['name']} ({r['score']})" for r in search_results
+                ],
+            }
+        )
+
+    n = len(tasks)
+    # Mean Reciprocal Rank
+    mrr_sum = sum(1.0 / r["rank"] for r in results if r["rank"] is not None)
+    return {
+        "mode": "recall",
+        "embedder": embedder,
+        "scale": len(corpus),
+        "search_k": search_k,
+        "tasks": n,
+        "recall_at_k": round(hits / n, 4),
+        "hits": hits,
+        "mrr": round(mrr_sum / n, 4),
+        "results": results,
+    }
+
+
 def run_raw_mode(
     model: str,
     tasks: list[dict],
     corpus: list[dict],
 ) -> dict:
     """Run benchmark in raw MCP mode (all schemas in context)."""
-    # Build system prompt with all tool schemas
     schemas_text = "\n\n".join(format_tool_schema_for_prompt(t) for t in corpus)
     system = RAW_SYSTEM.format(tool_schemas=schemas_text)
 
@@ -194,7 +348,8 @@ def run_raw_mode(
     total_latency = 0.0
 
     for i, task in enumerate(tasks):
-        print(f"  raw [{i + 1}/{len(tasks)}] {task['query'][:50]}...", end=" ")
+        label = f"  raw [{i + 1}/{len(tasks)}]"
+        print(f"{label} {task['query'][:50]}...", end=" ")
         sys.stdout.flush()
 
         text, pt, ct, lat = call_llm(model, system, task["query"])
@@ -214,7 +369,7 @@ def run_raw_mode(
         results.append(
             {
                 "query": task["query"],
-                "expected": f"{task['expected_server']}:{task['expected_tool']}",
+                "expected": (f"{task['expected_server']}:{task['expected_tool']}"),
                 "predicted": f"{server}:{tool}",
                 "correct": is_correct,
                 "prompt_tokens": pt,
@@ -246,8 +401,10 @@ def run_mcpfind_mode(
     tasks: list[dict],
     corpus: list[dict],
     search_k: int = 5,
+    embedder: str = "local",
 ) -> dict:
-    """Run benchmark in MCPFind mode (search → select)."""
+    """Run benchmark in MCPFind mode (search then select)."""
+    corpus_cache: dict = {}
     results = []
     correct = 0
     total_prompt = 0
@@ -255,11 +412,17 @@ def run_mcpfind_mode(
     total_latency = 0.0
 
     for i, task in enumerate(tasks):
-        print(f"  mcpfind [{i + 1}/{len(tasks)}] {task['query'][:50]}...", end=" ")
+        label = f"  mcpfind [{i + 1}/{len(tasks)}]"
+        print(f"{label} {task['query'][:50]}...", end=" ")
         sys.stdout.flush()
 
-        # Simulate search_tools call
-        search_results = simulate_mcpfind_search(task["query"], corpus, k=search_k)
+        search_results = simulate_mcpfind_search(
+            task["query"],
+            corpus,
+            k=search_k,
+            embedder=embedder,
+            _corpus_cache=corpus_cache,
+        )
         search_text = json.dumps(search_results, indent=2)
 
         system = MCPFIND_SYSTEM.format(search_results=search_text)
@@ -277,7 +440,6 @@ def run_mcpfind_mode(
         total_completion += ct
         total_latency += lat
 
-        # Check if correct tool was even in search results
         search_hit = any(
             r["server"] == task["expected_server"]
             and r["name"] == task["expected_tool"]
@@ -287,7 +449,7 @@ def run_mcpfind_mode(
         results.append(
             {
                 "query": task["query"],
-                "expected": f"{task['expected_server']}:{task['expected_tool']}",
+                "expected": (f"{task['expected_server']}:{task['expected_tool']}"),
                 "predicted": f"{server}:{tool}",
                 "correct": is_correct,
                 "search_hit": search_hit,
@@ -306,6 +468,7 @@ def run_mcpfind_mode(
     return {
         "mode": "mcpfind",
         "model": model,
+        "embedder": embedder,
         "scale": len(corpus),
         "search_k": search_k,
         "tasks": n,
@@ -322,35 +485,68 @@ def run_mcpfind_mode(
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Output
 # ---------------------------------------------------------------------------
 
 
 def print_summary(all_results: list[dict]) -> None:
     """Print a summary table of results."""
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 78)
     print("RESULTS SUMMARY")
-    print("=" * 80)
-    print(
-        f"{'Model':<30} {'Mode':<10} {'Scale':>6} "
-        f"{'Acc':>6} {'Prompt':>8} {'Comp':>6} {'Lat(ms)':>8}"
-    )
-    print("-" * 80)
-    for r in sorted(all_results, key=lambda x: (x["model"], x["mode"], x["scale"])):
-        extra = ""
-        if r["mode"] == "mcpfind":
-            extra = f"  (search recall: {r['search_recall']:.0%})"
+    print("=" * 78)
+
+    # Separate recall results from LLM results
+    recall_results = [r for r in all_results if r["mode"] == "recall"]
+    llm_results = [r for r in all_results if r["mode"] != "recall"]
+
+    if recall_results:
+        print(f"\n{'Embedder':<20} {'Scale':>6} {'Recall@k':>9} {'MRR':>6} {'k':>3}")
+        print("-" * 50)
+        for r in sorted(
+            recall_results,
+            key=lambda x: (x["embedder"], x["scale"]),
+        ):
+            print(
+                f"{r['embedder']:<20} {r['scale']:>6} "
+                f"{r['recall_at_k']:>8.0%} "
+                f"{r['mrr']:>6.3f} {r['search_k']:>3}"
+            )
+
+    if llm_results:
         print(
-            f"{r['model']:<30} {r['mode']:<10} {r['scale']:>6} "
-            f"{r['accuracy']:>5.0%} {r['avg_prompt_tokens']:>8} "
-            f"{r['avg_completion_tokens']:>6} {r['avg_latency_ms']:>8.0f}{extra}"
+            f"\n{'Model':<25} {'Mode':<10} {'Scale':>6} "
+            f"{'Acc':>5} {'Prompt':>7} {'Comp':>5} "
+            f"{'Lat':>7}"
         )
-    print("=" * 80)
+        print("-" * 78)
+        for r in sorted(
+            llm_results,
+            key=lambda x: (
+                x["model"],
+                x["mode"],
+                x["scale"],
+            ),
+        ):
+            extra = ""
+            if r["mode"] == "mcpfind":
+                sr = r["search_recall"]
+                extra = f"  recall={sr:.0%}"
+            print(
+                f"{r['model']:<25} {r['mode']:<10} "
+                f"{r['scale']:>6} "
+                f"{r['accuracy']:>4.0%} "
+                f"{r['avg_prompt_tokens']:>7} "
+                f"{r['avg_completion_tokens']:>5} "
+                f"{r['avg_latency_ms']:>6.0f}ms"
+                f"{extra}"
+            )
+
+    print("=" * 78)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="tau-bench: Tool-selection Accuracy Under scale"
+        description=("tau-bench: Tool-selection Accuracy Under scale")
     )
     parser.add_argument(
         "--model",
@@ -360,29 +556,37 @@ def main():
     parser.add_argument(
         "--scales",
         default="20,50,100,200,500",
-        help="Comma-separated tool counts to test (default: 20,50,100,200,500)",
+        help="Comma-separated tool counts (default: 20,50,100,200,500)",
     )
     parser.add_argument(
         "--mode",
-        choices=["raw", "mcpfind", "both"],
+        choices=["recall", "raw", "mcpfind", "both"],
         default="both",
-        help="Benchmark mode (default: both)",
+        help="Benchmark mode (default: both). "
+        "'recall' measures search only — no LLM API key needed.",
+    )
+    parser.add_argument(
+        "--embedder",
+        choices=["local", "openai"],
+        default="local",
+        help="Embedding provider for search (default: local). "
+        "'openai' requires OPENAI_API_KEY.",
     )
     parser.add_argument(
         "--search-k",
         type=int,
         default=5,
-        help="Number of search results for MCPFind mode (default: 5)",
+        help="Number of search results (default: 5)",
     )
     parser.add_argument(
         "--output",
         default=None,
-        help="Output directory for results (default: benchmarks/tau-bench/results/)",
+        help="Output directory (default: benchmarks/tau-bench/results/)",
     )
     parser.add_argument(
         "--tasks",
         default=None,
-        help="Path to tasks JSON file (default: tasks.json in same directory)",
+        help="Path to tasks JSON (default: tasks.json in same dir)",
     )
     parser.add_argument(
         "--seed",
@@ -398,11 +602,15 @@ def main():
     tasks = json.loads(Path(tasks_path).read_text())
     print(f"Loaded {len(tasks)} tasks")
 
-    # Parse scales
     scales = [int(s.strip()) for s in args.scales.split(",")]
-    modes = ["raw", "mcpfind"] if args.mode == "both" else [args.mode]
 
-    # Output directory
+    if args.mode == "recall":
+        modes = ["recall"]
+    elif args.mode == "both":
+        modes = ["raw", "mcpfind"]
+    else:
+        modes = [args.mode]
+
     output_dir = Path(args.output) if args.output else Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -410,28 +618,43 @@ def main():
 
     for scale in scales:
         print(f"\n{'=' * 60}")
-        print(f"Scale: {scale} tools | Model: {args.model}")
+        print(f"Scale: {scale} tools | Embedder: {args.embedder}")
         print(f"{'=' * 60}")
 
         corpus = generate_corpus(scale, seed=args.seed)
         n_dist = scale - len(TARGET_TOOLS)
-        print(f"Corpus: {len(TARGET_TOOLS)} target + {n_dist} distractor tools")
+        n_tgt = len(TARGET_TOOLS)
+        print(f"Corpus: {n_tgt} target + {n_dist} distractor")
 
         for mode in modes:
             print(f"\n--- Mode: {mode} ---")
 
-            if mode == "raw":
+            if mode == "recall":
+                result = run_recall_mode(
+                    tasks,
+                    corpus,
+                    search_k=args.search_k,
+                    embedder=args.embedder,
+                )
+            elif mode == "raw":
                 result = run_raw_mode(args.model, tasks, corpus)
             else:
                 result = run_mcpfind_mode(
-                    args.model, tasks, corpus, search_k=args.search_k
+                    args.model,
+                    tasks,
+                    corpus,
+                    search_k=args.search_k,
+                    embedder=args.embedder,
                 )
 
             all_results.append(result)
 
-            # Save individual result
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            fname = f"{args.model}_{mode}_{scale}_{timestamp}.json"
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            if mode == "recall":
+                label = f"{args.embedder}_recall"
+            else:
+                label = f"{args.model}_{mode}"
+            fname = f"{label}_{scale}_{ts}.json"
             out_path = output_dir / fname
             out_path.write_text(json.dumps(result, indent=2) + "\n")
             print(f"  Saved: {out_path}")
@@ -440,9 +663,10 @@ def main():
 
     # Save combined summary
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    summary_path = output_dir / f"summary_{args.model}_{ts}.json"
+    summary_path = output_dir / f"summary_{ts}.json"
     summary = {
         "model": args.model,
+        "embedder": args.embedder,
         "scales": scales,
         "modes": modes,
         "timestamp": datetime.now(timezone.utc).isoformat(),
